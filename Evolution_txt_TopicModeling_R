@@ -1,0 +1,13 @@
+```{r}
+#first we need to import our data using readtext. Quanteda will then let us make a corpus object from our imported txt data
+
+library(quanteda)
+library(readtext)
+
+require(quanteda)
+evolution_data_txt <-
+  readtext(paste0("/home/anaconda3/RStudioExperiments/Evolution_txt", "*.txt")
+  docvarsfrom = "filenames",
+  docvarnames = c("origin", "id#"),
+  dvsep = "_")
+```
