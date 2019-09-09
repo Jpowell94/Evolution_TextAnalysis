@@ -18,3 +18,14 @@ evolution_data_txt <-
   docvarnames = c("origin", "id#"),
   dvsep = "_")
 ```
+
+```{r}
+# as an intermediate step, we are going to make a corpus from our data. Then convert it to a dfm
+
+library(quanteda)
+
+evolution_data_corpus <- corpus(evolution_data_txt)
+
+evolution_dfm <- dfm(evolution_data_corpus)
+
+```
