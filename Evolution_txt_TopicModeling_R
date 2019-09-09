@@ -9,7 +9,6 @@ output: radix::radix_article
 ```{r}
 #first we need to import our data using readtext.
 
-library(quanteda)
 library(readtext)
 
 evolution_data_txt <-
