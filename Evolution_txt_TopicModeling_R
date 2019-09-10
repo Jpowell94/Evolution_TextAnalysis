@@ -12,19 +12,32 @@ output: radix::radix_article
 library(readtext)
 
 evolution_data_txt <-
-  readtext("~/anaconda3/RStudioExperiments/Evolution_txt",
-  docvarsfrom = "filenames",
-  docvarnames = c("origin", "id#"),
-  dvsep = "_")
+  readtext("~/anaconda3/RStudioExperiments/Evolution_txt")
+
+evolution_data_txt
 ```
 
 ```{r}
-# as an intermediate step, we are going to make a corpus from our data. Then convert it to a dfm
+#We need to then convert our data to a Vcorpus object
 
-library(quanteda)
+library(tm)
 
-evolution_data_corpus <- corpus(evolution_data_txt)
+evolution_corpus = Corpus(VectorSource(evolution_data_txt$text))
 
-evolution_dfm <- dfm(evolution_data_corpus)
+evolution_corpus
+```
+
+```{r}
+#Our Vcorpus object needs to be preprocessed.
+
+evolution_corpus = tm_map(evolution_corpus, content_transformer(tolower))
+
+evolution_corpus = tm_map(evolution_corpus, removeNumbers)
+
+evolution_corpus = tm_map(evolution_corpus, removePunctuation)
+
+evolution_corpus = tm_map(evolution_corpus, removeWords, c("the", "and", stopwords("english")))
+
+evolution_corpus = tm_map(evolution_corpus, stripWhitespace)
 
 ```
