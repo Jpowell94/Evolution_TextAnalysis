@@ -31,10 +31,10 @@ evolution_corpus
 #Our Vcorpus object needs to be preprocessed.
 
 evolution_clean <- tm_map(evolution_corpus, content_transformer(tolower)) %>%
-  tm_map(evolution_corpus, removeWords, c("the", "and", stopwords("english")) %>%
-  tm_map(evolution_corpus, removeNumbers) %>%
-  tm_map(evolution_corpus, removePunctuation) %>%
-  tm_map(evolution_corpus, stripWhitespace)
+  tm_map(removeWords, c("the", "and", stopwords("english")) %>%
+  tm_map(removeNumbers) %>%
+  tm_map(removePunctuation) %>%
+  tm_map(stripWhitespace)
 
 ```
 
