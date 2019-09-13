@@ -22,7 +22,7 @@ evolution_data_txt
 
 library(tm)
 
-evolution_corpus = Corpus(VectorSource(evolution_data_txt$text))
+evolution_corpus <- Corpus(VectorSource(evolution_data_txt$text))
 
 evolution_corpus
 ```
@@ -30,14 +30,17 @@ evolution_corpus
 ```{r}
 #Our Vcorpus object needs to be preprocessed.
 
-evolution_corpus = tm_map(evolution_corpus, content_transformer(tolower))
+evolution_clean <- tm_map(evolution_corpus, content_transformer(tolower)) %>%
+  tm_map(evolution_corpus, removeWords, c("the", "and", stopwords("english")) %>%
+  tm_map(evolution_corpus, removeNumbers) %>%
+  tm_map(evolution_corpus, removePunctuation) %>%
+  tm_map(evolution_corpus, stripWhitespace)
 
-evolution_corpus = tm_map(evolution_corpus, removeNumbers)
+```
 
-evolution_corpus = tm_map(evolution_corpus, removePunctuation)
+```{r}
+#we need to now convert our corpus object to a dtm
 
-evolution_corpus = tm_map(evolution_corpus, removeWords, c("the", "and", stopwords("english")))
-
-evolution_corpus = tm_map(evolution_corpus, stripWhitespace)
+evolution_dtm <- DocumentTermMatrix(evolution_clean)
 
 ```
