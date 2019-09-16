@@ -22,7 +22,7 @@ evolution_data_txt
 
 library(tm)
 
-evolution_corpus <- Corpus(VectorSource(evolution_data_txt$text))
+evolution_corpus = Corpus(VectorSource(evolution_data_txt$text))
 
 evolution_corpus
 ```
@@ -44,3 +44,17 @@ evolution_clean <- tm_map(evolution_corpus, content_transformer(tolower)) %>%
 evolution_dtm <- DocumentTermMatrix(evolution_clean)
 
 ```
+```{r}
+#We need to try and estimate the optimal number of topics for our topic model.
+
+library(ldatuning)
+
+result <- FindTopicsNumber(
+  evolution_dtm,
+  topics = seq(from = 2, to = 450),
+  metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
+  method = "Gibbs",
+  control = list(seed = 8675309),
+  mc.cores = 24L,
+  verbose = TRUE
+)
