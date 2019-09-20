@@ -44,6 +44,13 @@ evolution_clean <- tm_map(evolution_corpus, content_transformer(tolower)) %>%
 evolution_dtm <- DocumentTermMatrix(evolution_clean)
 
 ```
+
+```{r}
+#We need to reduce the dimension of our dtm, which we will do by removing the less frequent terms such that the sparsity is below 0.95
+
+evolution_dtm = removeSparseTerms(evolution_dtm, 0.95)
+```
+
 ```{r}
 #We need to try and estimate the optimal number of topics for our topic model.
 
@@ -55,6 +62,6 @@ result <- FindTopicsNumber(
   metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
   method = "Gibbs",
   control = list(seed = 8675309),
-  mc.cores = 24L,
+  mc.cores = 23L,
   verbose = TRUE
 )
