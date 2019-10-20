@@ -58,7 +58,7 @@ library(ldatuning)
 
 result <- FindTopicsNumber(
   evolution_dtm,
-  topics = seq(from = 2, to = 450, by = 10),
+  topics = (400),
   metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
   method = "Gibbs",
   control = list(seed = 8675309),
