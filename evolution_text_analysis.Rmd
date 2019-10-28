@@ -8,7 +8,6 @@ date: "'r Sys.Date()'"
 
 ```{r}
 #first we need to import our data using readtext.
-
 library(readtext)
 
 evolution_data_txt <- readtext("~/Rexperiments/Evolution")
@@ -28,7 +27,6 @@ evolution_corpus
 
 ```{r}
 #Our corpus object needs to be preprocessed.
-
 library(magrittr)
 
 evolution_clean <- tm_map(evolution_corpus, content_transformer(tolower)) %>%
@@ -42,7 +40,6 @@ evolution_clean
 
 ```{r}
 #we need to now convert our corpus object to a dtm
-
 evolution_dtm <- DocumentTermMatrix(evolution_clean)
 
 evolution_dtm
@@ -50,7 +47,6 @@ evolution_dtm
 
 ```{r}
 #we need to reduce the dimension of our dtm, which we will do by removing the less frequent terms.
-
 evolution_reduced <- removeSparseTerms(evolution_dtm, 0.95)
 
 evolution_reduced
@@ -58,10 +54,8 @@ evolution_reduced
 
 ```{r}
 #We need to try and estimate the optimal number of topics for our topic model.
-
 library(quanteda)
 library(ldatuning)
-
 
 result <- FindTopicsNumber(
   evolution_reduced,
@@ -88,7 +82,6 @@ evolution_model
 
 ```{r}
 #in the tidy format, we can explore the terms-per-topic and topics-per-document relations easier.
-
 library(tidytext)
 
 evolution_topics <- tidy(evolution_model, matrix = "beta")
@@ -98,7 +91,6 @@ evolution_topics
 
 ```{r}
 #we want to identify the top terms per topic, to try and get a summary of what each topic is about.
-
 library(ggplot2)
 library(dplyr)
 
@@ -145,10 +137,8 @@ evolution_top_gamma %>%
 evolution_top_gamma
 ```
 
-
 ```{r}
 #we need to be able to visually explore our model; this function will allow us to do that.
-
 topicmodels_json_ldavis <- function(evolution_model, evolution_clean, evolution_reduced){
     # Required packages
     library(topicmodels)
