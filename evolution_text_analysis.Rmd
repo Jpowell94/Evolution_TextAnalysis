@@ -1,0 +1,194 @@
+---
+title: "Evolution Text Analysis"
+author:
+  - name: Jesse Powell
+date: "'r Sys.Date()'"
+
+---
+
+```{r}
+#first we need to import our data using readtext.
+
+library(readtext)
+
+evolution_data_txt <- readtext("~/Rexperiments/Evolution")
+
+evolution_data_txt
+```
+
+```{r}
+#We need to then convert our data to a corpus object
+library(NLP)
+library(tm)
+
+evolution_corpus <- Corpus(VectorSource(evolution_data_txt$text))
+
+evolution_corpus
+```
+
+```{r}
+#Our corpus object needs to be preprocessed.
+
+library(magrittr)
+
+evolution_clean <- tm_map(evolution_corpus, content_transformer(tolower)) %>%
+  tm_map(removeWords, c("the", "and", stopwords("english"))) %>%
+  tm_map(removeNumbers) %>%
+  tm_map(removePunctuation) %>%
+  tm_map(stripWhitespace)
+
+evolution_clean
+```
+
+```{r}
+#we need to now convert our corpus object to a dtm
+
+evolution_dtm <- DocumentTermMatrix(evolution_clean)
+
+evolution_dtm
+```
+
+```{r}
+#we need to reduce the dimension of our dtm, which we will do by removing the less frequent terms.
+
+evolution_reduced <- removeSparseTerms(evolution_dtm, 0.95)
+
+evolution_reduced
+```
+
+```{r}
+#We need to try and estimate the optimal number of topics for our topic model.
+
+library(quanteda)
+library(ldatuning)
+
+
+result <- FindTopicsNumber(
+  evolution_reduced,
+  topics = seq(from = 350, to= 450, by = 10),
+  metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
+  method = "Gibbs",
+  control = list(seed = 77),
+  mc.cores = 23L,
+  verbose = TRUE
+)
+
+FindTopicsNumber_plot(result)
+```
+
+```{r}
+#Once we have identified an optimal k, we can build a topic model with k-many topics.
+library(topicmodels)
+
+evolution_model <- LDA(evolution_reduced, k = 400,  method = "Gibbs", control = list(seed = 77))
+
+evolution_model
+
+```
+
+```{r}
+#in the tidy format, we can explore the terms-per-topic and topics-per-document relations easier
+
+library(tidytext)
+
+evolution_topics <- tidy(evolution_model, matrix = "beta")
+
+evolution_topics
+```
+
+```{r}
+#we want to identify the top terms per topic, to try and get a summary of what each topic is about
+
+library(ggplot2)
+library(dplyr)
+
+evolution_top_terms <- evolution_topics %>%
+  group_by(topic) %>%
+  top_n(5, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+evolution_top_terms %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap (~ topic, scales = "free") +
+  coord_flip()
+
+evolution_top_terms
+```
+
+```{r}
+#we can also try and get an idea of what each article is about by estimating what topics contribute most to each article
+library(tidytext)
+
+evolution_gamma <- tidy(evolution_model, matrix = "gamma")
+
+evolution_gamma
+```
+
+```{r}
+#this will let us visualize our results
+evolution_top_gamma <- evolution_gamma %>%
+  group_by(document) %>%
+  top_n(1, gamma) %>%
+  ungroup() %>%
+  arrange(topic, -gamma)
+
+evolution_top_gamma %>%
+  mutate(document = reorder(document, gamma)) %>%
+  ggplot(aes(document, gamma, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+
+evolution_top_gamma
+```
+
+
+```{r}
+#we need to be able to visually explore our model; this function will allow us to do that
+
+topicmodels_json_ldavis <- function(evolution_model, evolution_clean, evolution_reduced){
+    # Required packages
+    library(topicmodels)
+    library(dplyr)
+    library(stringi)
+    library(tm)
+    library(LDAvis)
+
+    # Find required quantities
+    phi <- posterior(evolution_model)$terms %>% as.matrix
+    theta <- posterior(evolution_model)$topics %>% as.matrix
+    vocab <- colnames(phi)
+    doc_length <- vector()
+    for (i in 1:length(evolution_clean)) {
+        temp <- paste(evolution_clean[[i]]$content, collapse = ' ')
+        doc_length <- c(doc_length, stri_count(temp, regex = '\\S+'))
+    }
+    temp_frequency <- as.matrix(evolution_reduced)
+    freq_matrix <- data.frame(ST = colnames(temp_frequency),
+                              Freq = colSums(temp_frequency))
+    rm(temp_frequency)
+
+    # Convert to json
+    json_lda <- LDAvis::createJSON(phi = phi, theta = theta,
+                            vocab = vocab,
+                            doc.length = doc_length,
+                            term.frequency = freq_matrix$Freq)
+
+    return(json_lda)
+}
+
+```
+
+```{r}
+#applying the function
+library("LDAvis")
+
+evolution_json <- topicmodels_json_ldavis(evolution_model, evolution_clean, evolution_reduced)
+
+serVis(evolution_json)
+
+```
+
