@@ -77,7 +77,6 @@ library(topicmodels)
 evolution_model <- LDA(evolution_reduced, k = 400,  method = "Gibbs", control = list(seed = 77))
 
 evolution_model
-
 ```
 
 ```{r}
@@ -169,7 +168,6 @@ topicmodels_json_ldavis <- function(evolution_model, evolution_clean, evolution_
 
     return(json_lda)
 }
-
 ```
 
 ```{r}
@@ -179,6 +177,5 @@ library("LDAvis")
 evolution_json <- topicmodels_json_ldavis(evolution_model, evolution_clean, evolution_reduced)
 
 serVis(evolution_json)
-
 ```
 
