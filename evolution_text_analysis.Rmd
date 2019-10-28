@@ -87,7 +87,7 @@ evolution_model
 ```
 
 ```{r}
-#in the tidy format, we can explore the terms-per-topic and topics-per-document relations easier
+#in the tidy format, we can explore the terms-per-topic and topics-per-document relations easier.
 
 library(tidytext)
 
@@ -97,7 +97,7 @@ evolution_topics
 ```
 
 ```{r}
-#we want to identify the top terms per topic, to try and get a summary of what each topic is about
+#we want to identify the top terms per topic, to try and get a summary of what each topic is about.
 
 library(ggplot2)
 library(dplyr)
@@ -119,7 +119,7 @@ evolution_top_terms
 ```
 
 ```{r}
-#we can also try and get an idea of what each article is about by estimating what topics contribute most to each article
+#we can also try and get an idea of what each article is about by estimating what topics contribute most to each article.
 library(tidytext)
 
 evolution_gamma <- tidy(evolution_model, matrix = "gamma")
@@ -147,7 +147,7 @@ evolution_top_gamma
 
 
 ```{r}
-#we need to be able to visually explore our model; this function will allow us to do that
+#we need to be able to visually explore our model; this function will allow us to do that.
 
 topicmodels_json_ldavis <- function(evolution_model, evolution_clean, evolution_reduced){
     # Required packages
@@ -183,7 +183,7 @@ topicmodels_json_ldavis <- function(evolution_model, evolution_clean, evolution_
 ```
 
 ```{r}
-#applying the function
+#applying the function to get an object we can view in the browser.
 library("LDAvis")
 
 evolution_json <- topicmodels_json_ldavis(evolution_model, evolution_clean, evolution_reduced)
