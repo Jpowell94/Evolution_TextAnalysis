@@ -179,3 +179,31 @@ evolution_json <- topicmodels_json_ldavis(evolution_model, evolution_clean, evol
 serVis(evolution_json)
 ```
 
+
+```{r}
+#Thanks to the wonderful Marcelena Nagales for the help on this block.
+
+data  <- lapply(files, function(x) {
+# does the thing for one file (WITH PIPING)
+
+# this reads first file (this could be the second one)
+temp2 <- read_xml(x)
+
+# long train of finding the childs of article
+# we know that 3 levels is where pub-date is 
+xml_children(temp2) %>%
+    xml_children() %>%
+    xml_children() %>%
+    xml_children() -> z
+
+# determine names of last layer children
+name <- xml_name(z)
+# determines index of "year" in children of z
+index <- which(name == "year")
+
+#prints content of year node (yayyyyyy)
+xml_contents(z[[index[[1]]]])
+})
+
+pubyear_int <- lapply(data, xml_integer)
+```
