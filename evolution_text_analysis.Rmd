@@ -172,7 +172,7 @@ topicmodels_json_ldavis <- function(evolution_model, evolution_clean, evolution_
 
 ```{r}
 #applying the function to get an object we can view in the browser.
-library("LDAvis")
+library(LDAvis)
 
 evolution_json <- topicmodels_json_ldavis(evolution_model, evolution_clean, evolution_reduced)
 
