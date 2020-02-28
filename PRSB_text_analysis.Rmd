@@ -1,0 +1,369 @@
+---
+title: "PRSB Text Analysis"
+author:
+  - name: Jesse Powell
+date: "'r Sys.Date()'"
+
+---
+
+```{r}
+#first we need to import our data using readtext.
+
+library(readtext)
+
+PRSB_data_txt <- readtext("~/Rexperiments/PRSB")
+
+PRSB_data_txt
+```
+
+```{r}
+#We need to then convert our data to a corpus object
+library(NLP)
+library(tm)
+
+PRSB_corpus <- Corpus(VectorSource(PRSB_data_txt$text))
+
+PRSB_corpus
+```
+
+```{r}
+#Our corpus object needs to be preprocessed.
+
+library(magrittr)
+
+PRSB_clean <- tm_map(PRSB_corpus, content_transformer(tolower)) %>%
+  tm_map(removeWords, c("the", "and", stopwords("english"))) %>%
+  tm_map(removeNumbers) %>%
+  tm_map(removePunctuation) %>%
+  tm_map(stripWhitespace)
+
+PRSB_clean
+```
+
+```{r}
+#we need to now convert our corpus object to a dtm.
+
+PRSB_dtm <- DocumentTermMatrix(PRSB_clean)
+
+PRSB_dtm
+```
+
+```{r}
+#we need to reduce the dimension of our dtm, 
+#which we will do by removing the less frequent terms.
+
+PRSB_reduced <- removeSparseTerms(PRSB_dtm, 0.95)
+
+PRSB_reduced
+```
+
+```{r}
+#If the above document term matrix contains at least one row with no words,
+#then it will return an error if used as input for lda tuning below. 
+#The following code block looks to find the sum of words in each document, 
+#and then remove all documents without words (sum not greater than 0).
+
+rowTotals <- apply(PRSB_reduced, 1, sum)
+
+PRSB_rowsum <- PRSB_reduced[rowTotals > 0, ]
+
+```
+
+```{r}
+## Convert dtm to a list of text.
+rowsum2list <- apply(PRSB_rowsum, 1, function(x) {
+    paste(rep(names(x), x), collapse=" ")
+})
+
+## convert to a Corpus.
+rowsum_corpus <- VCorpus(VectorSource(rowsum2list))
+inspect(rowsum_corpus)
+```
+
+```{r}
+#We need to try and estimate the optimal number of topics for our topic model.
+
+library(quanteda)
+library(ldatuning)
+
+
+result_PRSB <- FindTopicsNumber(
+  PRSB_rowsum,
+  topics = seq(from = 172, to= 190, by = 2),
+  metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
+  method = "Gibbs",
+  control = list(seed = 77),
+  mc.cores = 23L,
+  verbose = TRUE
+)
+
+FindTopicsNumber_plot(result_PRSB)
+```
+
+```{r}
+#Once we have identified an optimal k, 
+#we can build a topic model with k-many topics.
+library(topicmodels)
+
+PRSB_model <- LDA(PRSB_rowsum, k = 182,  
+                  method = "Gibbs", 
+                  control = list(seed = 77))
+
+PRSB_model
+```
+
+```{r}
+#in the tidy format, we can explore the terms-per-topic relations easier, 
+#as well as the topics-per-document relations.
+
+library(tidytext)
+
+PRSB_topics <- tidy(PRSB_model, matrix = "beta")
+
+PRSB_topics
+```
+
+```{r}
+#we want to identify the top terms per topic.
+#This will give us a rough summary of what each topic is about.
+
+library(ggplot2)
+library(dplyr)
+
+PRSB_top_terms <- evolution_topics %>%
+  group_by(topic) %>%
+  top_n(1, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+PRSB_top_terms %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap (~ topic, scales = "free") +
+  coord_flip()
+
+PRSB_top_terms
+```
+
+```{r}
+#we can also try and get an idea of what each article is about
+#by estimating what topics contribute most to each article.
+library(tidytext)
+
+PRSB_gamma <- tidy(PRSB_model, matrix = "gamma")
+
+PRSB_gamma
+```
+
+```{r}
+#this will let us visualize our results.
+PRSB_top_gamma <- PRSB_gamma %>%
+  group_by(document) %>%
+  top_n(1, gamma) %>%
+  ungroup() %>%
+  arrange(topic, -gamma)
+
+PRSB_top_gamma %>%
+  mutate(document = reorder(document, gamma)) %>%
+  ggplot(aes(document, gamma, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+
+PRSB_top_gamma
+```
+
+
+```{r}
+#we need to be able to visually explore our model. 
+#This function will allow us to do that
+
+topicmodels_json_ldavis <- function(PRSB_model, rowsum_corpus, PRSB_rowsum){
+    # Required packages
+    library(topicmodels)
+    library(dplyr)
+    library(stringi)
+    library(tm)
+    library(LDAvis)
+
+    # Find required quantities
+    phi <- posterior(PRSB_model)$terms %>% as.matrix
+    theta <- posterior(PRSB_model)$topics %>% as.matrix
+    vocab <- colnames(phi)
+    doc_length <- vector()
+    for (i in 1:length(rowsum_corpus)) {
+        temp <- paste(rowsum_corpus[[i]]$content, collapse = ' ')
+        doc_length <- c(doc_length, stri_count(temp, regex = '\\S+'))
+    }
+    temp_frequency <- as.matrix(PRSB_rowsum)
+    freq_matrix <- data.frame(ST = colnames(temp_frequency),
+                              Freq = colSums(temp_frequency))
+    rm(temp_frequency)
+
+    # Convert to json
+    json_lda <- LDAvis::createJSON(phi = phi, theta = theta,
+                            vocab = vocab,
+                            doc.length = doc_length,
+                            term.frequency = freq_matrix$Freq)
+
+    return(json_lda)
+}
+```
+
+```{r}
+#applying the function
+library(LDAvis)
+
+PRSB_json <- topicmodels_json_ldavis(PRSB_model, rowsum_corpus, PRSB_rowsum)
+
+serVis(PRSB_json)
+```
+
+
+```{r}
+#Thanks to the wonderful Marcelena Nagales for the help on this block.
+library(dplyr)
+library(xml2)
+
+
+setwd("~/Rexperiments/PRSB_xml")
+
+PRSB_xml <- list.files("~/Rexperiments/PRSB_xml", pattern = ".xml$")
+
+PRSB_xml <- as.list(PRSB_xml)
+data  <- lapply(PRSB_xml, function(x) {
+# does the thing for one file (WITH PIPING)
+# this reads first file (this could be the second one)
+temp <- read_xml(x)
+# long train of finding the childs of article
+# we know that 3 levels is where pub-date is 
+xml_children(temp) %>%
+    xml_children() %>%
+    xml_children() %>%
+    xml_children() -> z
+# determine names of last layer children
+name <- xml_name(z)
+# determines index of "year" in children of z
+index <- which(name == "year")
+#prints content of year node (yayyyyyy)
+xml_contents(z[[index[[1]]]])
+})
+
+PRSB_pubyear_int <- lapply(data, xml_integer)
+```
+
+```{r}
+
+                        
+PRSB_gamma2 <- read.csv("PRSB_gamma.csv")
+
+PRSB_gamma2 <- PRSB_gamma2[, !(names(PRSB_gamma2) == "topic") ] 
+
+PRSB_gamma2$year = as.factor(PRSB_gamma2$year)
+
+PRSB_gamma2$gamma = as.numeric(PRSB_gamma2$gamma)
+
+PRSB_gamma2
+```
+
+```{r}  
+library(ggplot2)
+library(magrittr)
+
+PRSB_gamma_plot <- ggplot(data = PRSB_df, mapping = aes(x = year, y = gamma)) +
+                    geom_point()
+  
+
+PRSB_gamma_plot
+
+```
+
+```{r}
+PRSB_avg <- data.frame(year=integer(),
+                 topic=integer(), 
+                 average_gamma=double(), 
+                 stringsAsFactors=FALSE) 
+for (i in unique(PRSB_df$year)) {
+  for (j in unique(PRSB_df$topic)) {
+    
+    indices <- which(PRSB_df$year == i & PRSB_df$topic == j )
+    allGamma <- sum(PRSB_df$gamma[indices])
+    avg_gamma <- allGamma / length(indices)
+    PRSB_avg <- add_row(PRSB_avg, 
+                        year = i, 
+                        topic = j, 
+                        average_gamma = avg_gamma)
+
+
+  }
+}
+
+```
+
+```{r}
+#We can now use our average values to create a stream graph.
+#This will show us how the proportion of the discourse that is being dedicated
+#to each topic, and their relative differences,
+#is changing as a function of time.
+
+library(dplyr)
+library(streamgraph)
+
+ PRSB_streamgraph <- PRSB_avg %>%
+   streamgraph(key="topic", value="average_gamma", date="year", offset = "expand") %>%
+   sg_fill_manual(streamgraph_colors) %>%
+   sg_axis_x("year", "%y") %>%
+   sg_legend(show = TRUE, label = "topic")
+
+PRSB_streamgraph
+```
+
+
+
+```{r}
+#what we have is a time series; a series of gamma averages measured yearly for 60+ years. We should transform the data into a time series object to perform time series analysis on it.
+library(forecast)
+
+PRSB_avg_cp$year <- as.Date(PRSB_avg_cp$year, format = "%y", origin = "1905")
+
+PRSB_gamma_ts <- ts(PRSB_avg_cp$average_gamma, start = c(1905), end = c(2014), frequency = 182)
+
+plot(PRSB_gamma_ts)
+#lagplot of the data. Effectively a test of randomness in the data. Should be no identifiable structure in the plots if random.
+gglagplot(PRSB_gamma_ts, set.lags =1:5, seasonal = FALSE)
+
+#The autocorelation function tells us how correlated two measurements are seperated by a set number of measurements n. Autocorrelation gives us a measure of how correlated the measurements are with each other over different spans of time.
+ggAcf(PRSB_gamma_ts, lag.max = 24)
+
+#right: autocorrelation plot of the data
+ggAcf(PRSB_gamma_ts, lag.max = 69)
+```
+
+```{r}
+autoplot(PRSB_gamma_ts) +
+  geom_point() +
+  geom_smooth() +
+  labs( y = "avg.gamma", x = "year")
+```
+
+```{r}
+#By removing the long term trend, we can see how the difference z[t] - z[t-1] is changing over time for all t and t-1 in our time series
+autoplot(diff(gamma_ts)) +
+  geom_smooth()
+```
+
+```{r}
+drops <- c("document")
+
+ts2 <- ts2[, !(names(ts2) %in% drops)] 
+
+ts2
+```
+
+```{r}
+gamma_plot_against <- ggplot(data = evolution_gamma22, mapping = aes(x = year, y = gamma)) +
+  geom_point() +
+  geom_line(data = (gamma_ts), col = "red")
+
+gamma_plot_against
