@@ -8,6 +8,7 @@ date: "'r Sys.Date()'"
 
 ```{r}
 #first we need to import our data using readtext.
+
 library(readtext)
 
 evolution_data_txt <- readtext("~/Rexperiments/Evolution")
@@ -27,6 +28,7 @@ evolution_corpus
 
 ```{r}
 #Our corpus object needs to be preprocessed.
+
 library(magrittr)
 
 evolution_clean <- tm_map(evolution_corpus, content_transformer(tolower)) %>%
@@ -40,6 +42,7 @@ evolution_clean
 
 ```{r}
 #we need to now convert our corpus object to a dtm
+
 evolution_dtm <- DocumentTermMatrix(evolution_clean)
 
 evolution_dtm
@@ -47,6 +50,7 @@ evolution_dtm
 
 ```{r}
 #we need to reduce the dimension of our dtm, which we will do by removing the less frequent terms.
+
 evolution_reduced <- removeSparseTerms(evolution_dtm, 0.95)
 
 evolution_reduced
@@ -54,12 +58,14 @@ evolution_reduced
 
 ```{r}
 #We need to try and estimate the optimal number of topics for our topic model.
+
 library(quanteda)
 library(ldatuning)
 
+
 result <- FindTopicsNumber(
   evolution_reduced,
-  topics = seq(from = 350, to = 450, by = 10),
+  topics = seq(from = 350, to= 450, by = 10),
   metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
   method = "Gibbs",
   control = list(seed = 77),
@@ -80,7 +86,8 @@ evolution_model
 ```
 
 ```{r}
-#in the tidy format, we can explore the terms-per-topic and topics-per-document relations easier.
+#in the tidy format, we can explore the terms-per-topic and topics-per-document relations easier
+
 library(tidytext)
 
 evolution_topics <- tidy(evolution_model, matrix = "beta")
@@ -89,7 +96,8 @@ evolution_topics
 ```
 
 ```{r}
-#we want to identify the top terms per topic, to try and get a summary of what each topic is about.
+#we want to identify the top terms per topic, to try and get a summary of what each topic is about
+
 library(ggplot2)
 library(dplyr)
 
@@ -110,7 +118,7 @@ evolution_top_terms
 ```
 
 ```{r}
-#we can also try and get an idea of what each article is about by estimating what topics contribute most to each article.
+#we can also try and get an idea of what each article is about by estimating what topics contribute most to each article
 library(tidytext)
 
 evolution_gamma <- tidy(evolution_model, matrix = "gamma")
@@ -136,8 +144,10 @@ evolution_top_gamma %>%
 evolution_top_gamma
 ```
 
+
 ```{r}
-#we need to be able to visually explore our model; this function will allow us to do that.
+#we need to be able to visually explore our model; this function will allow us to do that
+
 topicmodels_json_ldavis <- function(evolution_model, evolution_clean, evolution_reduced){
     # Required packages
     library(topicmodels)
@@ -171,7 +181,7 @@ topicmodels_json_ldavis <- function(evolution_model, evolution_clean, evolution_
 ```
 
 ```{r}
-#applying the function to get an object we can view in the browser.
+#applying the function
 library(LDAvis)
 
 evolution_json <- topicmodels_json_ldavis(evolution_model, evolution_clean, evolution_reduced)
@@ -182,28 +192,134 @@ serVis(evolution_json)
 
 ```{r}
 #Thanks to the wonderful Marcelena Nagales for the help on this block.
+library(dplyr)
+library(xml2)
 
-data  <- lapply(files, function(x) {
+
+setwd("~/Rexperiments/XML")
+
+evolution_xml <- list.files("~/Rexperiments/XML", pattern = ".xml$")
+
+evolution_xml <- as.list(evolution_xml)
+data  <- lapply(evolution_xml, function(x) {
 # does the thing for one file (WITH PIPING)
-
 # this reads first file (this could be the second one)
-temp2 <- read_xml(x)
-
+temp <- read_xml(x)
 # long train of finding the childs of article
 # we know that 3 levels is where pub-date is 
-xml_children(temp2) %>%
+xml_children(temp) %>%
     xml_children() %>%
     xml_children() %>%
     xml_children() -> z
-
 # determine names of last layer children
 name <- xml_name(z)
 # determines index of "year" in children of z
 index <- which(name == "year")
-
 #prints content of year node (yayyyyyy)
 xml_contents(z[[index[[1]]]])
 })
 
 pubyear_int <- lapply(data, xml_integer)
+```
+
+```{r}
+evolution_avg <- data.frame(year=integer(),
+                 topic=integer(), 
+                 average_gamma=double(), 
+                 stringsAsFactors=FALSE) 
+for (i in unique(evolution_df$year)) {
+  for (j in unique(evolution_df$topic)) {
+    
+    indices <- which(evolution_df$year == i & evolution_df$topic == j )
+    allGamma <- sum(evolution_df$gamma[indices])
+    avg_gamma <- allGamma / length(indices)
+    evolution_avg <- add_row(evolution_avg, 
+                        year = i, 
+                        topic = j, 
+                        average_gamma = avg_gamma)
+
+
+  }
+}
+
+```
+
+```{r}
+#We can now use our average values to create a stream graph.
+#This will show us how the proportion of the discourse that is being dedicated
+#to each topic, and their relative differences,
+#is changing as a function of time.
+
+library(dplyr)
+library(streamgraph)
+
+ evolution_streamgraph <- evolution_avg %>%
+   streamgraph(key="topic", value="average_gamma", date="year", offset = "expand") %>%
+   sg_fill_manual(evolution_colors_viridis) %>%
+   sg_axis_x("year", "%y") %>%
+   sg_legend(show = TRUE, label = "topic")
+
+evolution_streamgraph
+```
+
+```{r}
+gamma_mean <- aggregate(evolution_gamma22$gamma, list(year = evolution_gamma22$year), mean)
+
+gamma_mean <- gamma_mean %>%
+  rename(avg.gamma = x)
+
+
+ 
+gamma_mean_plot <- ggplot(data = gamma_mean, mapping = aes(x = year, y = avg.gamma)) +
+  geom_point() +
+  labs(x = "year")
+
+gamma_mean_plot
+```
+
+```{r}
+#what we have is a time series; a series of gamma averages measured yearly for 60+ years. We should transform the data into a time series object to perform time series analysis on it.
+library(forecast)
+
+gamma_mean$year <- as.Date(gamma_mean$year, format = "%Y")
+      
+gamma_ts <- ts(gamma_mean$avg.gamma, start = c(1947), end = c(2015), frequency = 1)
+
+#lagplot of the data. Effectively a test of randomness in the data. Should be no identifiable structure in the plots if random.
+gglagplot(gamma_ts, set.lags =1:5, seasonal = FALSE)
+
+#The autocorelation function tells us how correlated two measurements are seperated by a set number of measurements n. Autocorrelation gives us a measure of how correlated the measurements are with each other over different spans of time.
+ggAcf(gamma_ts, lag.max = 24)
+
+#right: autocorrelation plot of the data
+ggAcf(gamma_ts, lag.max = 69)
+```
+
+```{r}
+autoplot(gamma_ts) +
+  geom_point() +
+  geom_smooth() +
+  labs( y = "avg.gamma", x = "year")
+```
+
+```{r}
+#By removing the long term trend, we can see how the difference z[t] - z[t-1] is changing over time for all t and t-1 in our time series
+autoplot(diff(gamma_ts)) +
+  geom_smooth()
+```
+
+```{r}
+drops <- c("document")
+
+ts2 <- ts2[, !(names(ts2) %in% drops)] 
+
+ts2
+```
+
+```{r}
+gamma_plot_against <- ggplot(data = evolution_gamma22, mapping = aes(x = year, y = gamma)) +
+  geom_point() +
+  geom_line(data = (gamma_ts), col = "red")
+
+gamma_plot_against
 ```
